@@ -23,6 +23,7 @@ import {
   hasProbeList,
   LEGACY_CARRIER_TASK_IDS,
   listConfiguredPingTaskIds,
+  listHiddenPingTaskIds,
   nodeCarrierNames,
 } from "@/services/cfsm/mappers";
 import { setPingLineOverrides } from "@/services/pingLineOverrideStore";
@@ -129,8 +130,10 @@ function PingLineMenu({
   // 旧 8 槽是站点级配置（公开响应看不到 host），按「有数据」列。
   // 旧面板没有 probes[]：退回「有数据的 + 正在显示的」老口径。
   const configured = listConfiguredPingTaskIds(rawServer);
+  const hidden = listHiddenPingTaskIds(rawServer);
   const hasProbes = hasProbeList(rawServer);
   const options = CARRIER_TASKS.filter((task) => {
+    if (hidden.includes(task.id)) return false; // 站长填 0 隐藏的不列
     if (task.id === currentTaskId) return true;
     if (hasProbes) {
       return (

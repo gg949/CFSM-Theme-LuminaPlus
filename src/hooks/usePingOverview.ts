@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
 import { useMinuteClock } from "@/hooks/useClock";
 import { useCarrierNames } from "@/hooks/usePublicConfig";
 import { useThemeSettings } from "@/hooks/useThemeSettings";
@@ -19,10 +19,13 @@ import {
   CARRIER_TASK_BY_ID,
   DEFAULT_CARRIER_NAMES,
   carrierTaskName,
+  carrierHostField,
+  carrierNameField,
   hasProbeList,
   inferIntervalSeconds,
   LEGACY_CARRIER_TASK_IDS,
   listConfiguredPingTaskIds,
+  listHiddenPingTaskIds,
   nodeCarrierNames,
 } from "@/services/cfsm/mappers";
 import { getRawServerSnapshot, subscribeAllNodes } from "@/services/wsStore";
@@ -360,6 +363,7 @@ export function useNodePingOverviewLines(
     const filtered = filterDisplayedPingTaskIds(
       taskIds,
       listConfiguredPingTaskIds(rawServer),
+      listHiddenPingTaskIds(rawServer),
       hasProbeList(rawServer),
     );
     const lines = getCachedLines(uuid, filtered, samples, undefined, nodeNames);
@@ -444,20 +448,67 @@ export function useAvailablePingTaskIds(uuid: string, enabled = true): readonly 
 export function filterDisplayedPingTaskIds(
   taskIds: readonly number[],
   configured: readonly number[],
+  hidden: readonly number[],
   hasProbes: boolean,
 ): readonly number[] {
-  if (taskIds.length === 0 || !hasProbes) return taskIds;
+  if (taskIds.length === 0) return taskIds;
+  // 填 0 隐藏：新老面板都生效，无条件过滤（全被隐藏就一条都不显示，不兜底放回来）。
+  const hiddenSet = new Set(hidden);
+  const visible = taskIds.some((taskId) => hiddenSet.has(taskId))
+    ? taskIds.filter((taskId) => !hiddenSet.has(taskId))
+    : taskIds;
+  if (visible.length === 0) return visible;
+  if (!hasProbes) return visible;
   const keep = new Set<number>([...LEGACY_CARRIER_TASK_IDS, ...configured]);
-  const next = taskIds.filter((taskId) => keep.has(taskId));
-  return next.length > 0 ? next : taskIds;
+  const next = visible.filter((taskId) => keep.has(taskId));
+  return next.length > 0 ? next : visible;
 }
 
-/** 这台节点的原始服务器对象（wsStore 里那份）：单机线路名、`probes[]` 都从它上读。 */
-export function useRawServer(uuid: string): CfsmServer | undefined {
-  const getSnapshot = useCallback(
-    () => (uuid ? getRawServerSnapshot(uuid) : undefined),
-    [uuid],
+/** 与本主题相关的字段签名：名字、host、probes。变了才让订阅者换引用重渲染。 */
+function probeInfoSignature(server: CfsmServer | undefined): string {
+  if (!server) return "";
+  const raw = server as unknown as Record<string, unknown>;
+  const parts: string[] = [];
+  for (const task of CARRIER_TASKS) {
+    parts.push(
+      String(raw[carrierHostField(task.key)] ?? ""),
+      String(raw[carrierNameField(task.key)] ?? ""),
+    );
+  }
+  const probes = raw.probes;
+  parts.push(
+    Array.isArray(probes)
+      ? probes
+          .map((probe) =>
+            probe && typeof probe === "object"
+              ? String((probe as Record<string, unknown>).id ?? "")
+              : "",
+          )
+          .join(",")
+      : "",
   );
+  return parts.join("|");
+}
+
+/**
+ * 这台节点的原始服务器对象（wsStore 里那份）：单机线路名、`probes[]`、host 都从它上读。
+ * **只在「相关字段变了」时才换引用**：wsStore 每秒都在重建对象，直接返回快照会让
+ * 订阅组件（详情页图表、卡片行）每秒无谓重渲染（表现为图表/提示每秒闪一下）。
+ */
+export function useRawServer(uuid: string): CfsmServer | undefined {
+  const cacheRef = useRef<{ raw: CfsmServer | undefined; signature: string }>({
+    raw: undefined,
+    signature: "",
+  });
+  const getSnapshot = useCallback(() => {
+    const raw = uuid ? getRawServerSnapshot(uuid) : undefined;
+    const cached = cacheRef.current;
+    if (cached.raw === raw) return raw;
+    const signature = probeInfoSignature(raw);
+    if (cached.signature === signature) return cached.raw;
+    cacheRef.current = { raw, signature };
+    return raw;
+  }, [uuid]);
   return useSyncExternalStore(subscribeAllNodes, getSnapshot, getSnapshot);
 }
 
