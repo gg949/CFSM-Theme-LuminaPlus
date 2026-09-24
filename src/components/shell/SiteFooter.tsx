@@ -13,8 +13,8 @@ import { formatVersionLabel } from "@/utils/versionCompare";
  * 快捷栏上的小点做过又撤掉了，站长不要。
  */
 
-const BACKEND_REPO_URL = "https://github.com/huilang-me/CF-Server-Monitor";
-const THEME_REPO_URL = "https://github.com/volcano-1025/CFSM-Theme-LuminaPlus";
+const BACKEND_REPO_URL = "https://github.com/gg949/ProbeDeck";
+const THEME_REPO_URL = "https://github.com/gg949/CFSM-Theme-LuminaPlus";
 const THEME_CHANGELOG_URL = `${THEME_REPO_URL}/blob/main/CHANGELOG.md`;
 
 export function SiteFooter() {

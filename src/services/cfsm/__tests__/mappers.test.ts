@@ -362,7 +362,7 @@ describe("history conversion", () => {
     ]);
   });
 
-  it("names the eight carrier tasks", () => {
+  it("names the 24 carrier tasks", () => {
     expect(carrierPingTasks().map((task) => [task.id, task.name])).toEqual([
       [1, "电信"],
       [2, "联通"],
@@ -372,6 +372,22 @@ describe("history conversion", () => {
       [6, "Node 2"],
       [7, "Node 3"],
       [8, "Node 4"],
+      [9, "Node 5"],
+      [10, "Node 6"],
+      [11, "Node 7"],
+      [12, "Node 8"],
+      [13, "Node 9"],
+      [14, "Node 10"],
+      [15, "Node 11"],
+      [16, "Node 12"],
+      [17, "Node 13"],
+      [18, "Node 14"],
+      [19, "Node 15"],
+      [20, "Node 16"],
+      [21, "Node 17"],
+      [22, "Node 18"],
+      [23, "Node 19"],
+      [24, "Node 20"],
     ]);
   });
 
@@ -410,6 +426,22 @@ describe("history conversion", () => {
       "东京",
       "Node 3",
       "Node 4",
+      "Node 5",
+      "Node 6",
+      "Node 7",
+      "Node 8",
+      "Node 9",
+      "Node 10",
+      "Node 11",
+      "Node 12",
+      "Node 13",
+      "Node 14",
+      "Node 15",
+      "Node 16",
+      "Node 17",
+      "Node 18",
+      "Node 19",
+      "Node 20",
     ]);
     expect(carrierTaskName(1, names)).toBe("CT");
     expect(carrierTaskName(3, names)).toBe("移动");
@@ -433,8 +465,9 @@ describe("resolveCarrierNames", () => {
     });
   });
 
-  it("falls back to a placeholder for ids outside the four fixed carriers", () => {
-    expect(carrierTaskName(9)).toBe("线路 #9");
+  it("falls back to a placeholder for ids outside the 24 slots", () => {
+    expect(carrierTaskName(9)).toBe("Node 5");
+    expect(carrierTaskName(25)).toBe("线路 #25");
   });
 });
 

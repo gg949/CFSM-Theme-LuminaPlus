@@ -25,9 +25,11 @@ describe("normalizePingLineOverrides", () => {
         "2": 0,
         "3": "4",
         "8": 4,
+        "23": 4,
+        "24": 4,
         "1": 6,
       }),
-    ).toEqual({ "0": 4, "1": 6 });
+    ).toEqual({ "0": 4, "1": 6, "8": 4, "23": 4 });
   });
 
   it("drops task ids the caller does not know", () => {
@@ -124,12 +126,12 @@ describe("normalizePingLineOverridesByNode", () => {
   it("keeps valid nodes and drops empty or junk ones", () => {
     expect(
       normalizePingLineOverridesByNode({
-        "node-a": { "0": 4, "9": 5 },
+        "node-a": { "0": 4, "9": 5, "30": 5 },
         "node-b": { "0": 0 },
         "node-c": [4],
         "": { "0": 4 },
       }),
-    ).toEqual({ "node-a": { "0": 4 } });
+    ).toEqual({ "node-a": { "0": 4, "9": 5 } });
   });
 
   it("returns the shared empty map for junk", () => {

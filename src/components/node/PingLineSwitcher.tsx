@@ -13,10 +13,18 @@ import { Check, RotateCcw } from "lucide-react";
 import {
   useAvailablePingTaskIds,
   useNodePingLineOverrides,
+  useRawServer,
 } from "@/hooks/usePingOverview";
 import { useCarrierNames } from "@/hooks/usePublicConfig";
 import { useThemeSettings } from "@/hooks/useThemeSettings";
-import { CARRIER_TASKS, carrierTaskName } from "@/services/cfsm/mappers";
+import {
+  CARRIER_TASKS,
+  carrierTaskName,
+  hasProbeList,
+  LEGACY_CARRIER_TASK_IDS,
+  listConfiguredPingTaskIds,
+  nodeCarrierNames,
+} from "@/services/cfsm/mappers";
 import { setPingLineOverrides } from "@/services/pingLineOverrideStore";
 import {
   EMPTY_PING_LINE_OVERRIDES,
@@ -105,7 +113,10 @@ function PingLineMenu({
   const { homepageMultiPingTaskIds, homepagePingLineOverrides } = useThemeSettings();
   const overrides = useNodePingLineOverrides(uuid);
   const available = useAvailablePingTaskIds(uuid);
+  const rawServer = useRawServer(uuid);
   const carrierNames = useCarrierNames();
+  // 单机名优先：卡片行上显示什么名，菜单里就显示什么名。
+  const nodeNames = nodeCarrierNames(rawServer, carrierNames);
   // 这台节点的「默认」= 站点线路表 + 站长存到后端的逐节点换线；本机换的行相对它记，「恢复默认」也回到它。
   const nodeDefault = resolveNodePingLineTaskIds(
     homepageMultiPingTaskIds,
@@ -113,11 +124,22 @@ function PingLineMenu({
   );
   const displayed = resolveNodePingLineTaskIds(nodeDefault, overrides);
   const currentTaskId = displayed[slot];
-  // 有数据的线路才列（后端对没配探测目标的槽位下发 false，换过去只会是一行「无样本」）；
-  // 正在显示的几条哪怕暂时没数据也列上，否则找不到当前选中项，也没法把它换回来。
-  const options = CARRIER_TASKS.filter(
-    (task) => available.includes(task.id) || displayed.includes(task.id),
-  ).map((task) => task.id);
+  // 当前选中项哪怕暂时没数据也列上，否则找不到它、也没法把它换走。
+  // 新面板（有 probes[]）：扩展点只列「已启用」的——站长删掉 / 填 0 隐藏的不再出现；
+  // 旧 8 槽是站点级配置（公开响应看不到 host），按「有数据」列。
+  // 旧面板没有 probes[]：退回「有数据的 + 正在显示的」老口径。
+  const configured = listConfiguredPingTaskIds(rawServer);
+  const hasProbes = hasProbeList(rawServer);
+  const options = CARRIER_TASKS.filter((task) => {
+    if (task.id === currentTaskId) return true;
+    if (hasProbes) {
+      return (
+        configured.includes(task.id) ||
+        (LEGACY_CARRIER_TASK_IDS.includes(task.id) && available.includes(task.id))
+      );
+    }
+    return available.includes(task.id) || displayed.includes(task.id);
+  }).map((task) => task.id);
   // 没有生效的本机覆盖时 resolve 原样返回默认那份数组，引用不同就说明本机换过。
   const customized = displayed !== nodeDefault;
 
@@ -232,7 +254,7 @@ function PingLineMenu({
             aria-current={active ? "true" : undefined}
             onClick={() => select(taskId)}
           >
-            <span className="ping-line-menu-label">{carrierTaskName(taskId, carrierNames)}</span>
+            <span className="ping-line-menu-label">{carrierTaskName(taskId, nodeNames)}</span>
             {swaps && <span className="ping-line-menu-hint">互换</span>}
             {active && <Check size={14} aria-hidden />}
           </button>

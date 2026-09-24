@@ -3,8 +3,9 @@ import UplotReact from "uplot-react";
 import type uPlot from "uplot";
 import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import { usePingRecords } from "@/hooks/useRecords";
+import { useRawServer } from "@/hooks/usePingOverview";
 import { useCarrierNames } from "@/hooks/usePublicConfig";
-import { carrierTaskName } from "@/services/cfsm/mappers";
+import { carrierTaskName, nodeCarrierNames } from "@/services/cfsm/mappers";
 import { InstancePanel, InstanceChartLoading } from "./InstancePanel";
 import {
   buildChartTooltipHooks,
@@ -149,17 +150,23 @@ export function PingChart({
     time: "",
   });
   const isDark = resolvedAppearance === "dark";
-  // 线路名以 `/api/config` 的自定义名为准：历史查询是按 uuid+hours 缓存的，站长改名
+  // 线路名以自定义名为准：历史查询是按 uuid+hours 缓存的，站长改名
   // （或 config 晚于历史返回）不会让那份缓存重算，所以在这里按当前名字重新贴一遍。
+  // 单机名优先（`/api/config` 是站点名打底，扩展点的名字在服务器对象上）。
   const carrierNames = useCarrierNames();
+  const rawServer = useRawServer(uuid);
+  const nodeNames = useMemo(
+    () => nodeCarrierNames(rawServer, carrierNames),
+    [carrierNames, rawServer],
+  );
   // API 顺序与后台任务权重一致，响应本身不一定包含可重排的权重。
   const tasks = useMemo(
     () =>
       (data?.tasks ?? []).map((task) => ({
         ...task,
-        name: carrierTaskName(task.id, carrierNames),
+        name: carrierTaskName(task.id, nodeNames),
       })),
-    [carrierNames, data],
+    [data, nodeNames],
   );
   const taskLabels = useMemo(() => {
     const counts = new Map<string, number>();
@@ -201,6 +208,9 @@ export function PingChart({
   useEffect(() => {
     setHiddenTasks((prev) => {
       const validTaskIds = new Set(tasks.map((task) => task.id));
+      // 切范围/换口径的瞬间 tasks 可能是空的：这时不能按「全部无效」把隐藏集合清掉，
+      // 否则隐藏过的线路一换范围就自己回来了。
+      if (validTaskIds.size === 0) return prev;
       const next = new Set([...prev].filter((taskId) => validTaskIds.has(taskId)));
       return next.size === prev.size ? prev : next;
     });

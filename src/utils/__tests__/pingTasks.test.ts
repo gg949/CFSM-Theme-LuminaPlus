@@ -64,11 +64,14 @@ describe("homepage ping task bindings", () => {
   });
 
   it("normalizes the global selection in display order, capped at the max line count", () => {
-    // 去重、保序、按上限截断。上限跟着后端线路数走（2.8.5 Beta4 起是八条），不再写死三条。
+    // 去重、保序、按上限截断。上限跟着后端线路数走（24 条），不再写死三条。
     expect(normalizeHomepageMultiPingTaskIds(["3", 1, 3, 2, 4])).toEqual([3, 1, 2, 4]);
     expect(normalizeHomepageMultiPingTaskIds([8, 7, 6, 5, 4, 3, 2, 1, 9])).toEqual([
-      8, 7, 6, 5, 4, 3, 2, 1,
+      8, 7, 6, 5, 4, 3, 2, 1, 9,
     ]);
+    // 超过 24 条时截到 24。
+    const many = Array.from({ length: 30 }, (_, index) => index + 1);
+    expect(normalizeHomepageMultiPingTaskIds(many)).toHaveLength(24);
   });
 
   it("swaps two slots when the picked line is already used by another slot", () => {

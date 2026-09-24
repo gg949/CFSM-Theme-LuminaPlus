@@ -19,12 +19,18 @@ import {
   CARRIER_TASK_BY_ID,
   DEFAULT_CARRIER_NAMES,
   carrierTaskName,
+  hasProbeList,
   inferIntervalSeconds,
+  LEGACY_CARRIER_TASK_IDS,
+  listConfiguredPingTaskIds,
+  nodeCarrierNames,
 } from "@/services/cfsm/mappers";
+import { getRawServerSnapshot, subscribeAllNodes } from "@/services/wsStore";
 import { CARRIER_KEYS, CARRIER_LOSS_KEYS } from "@/types/cfsm";
 import type {
   CarrierNames,
   CarrierPingSnapshot,
+  CfsmServer,
   HomepagePingLine,
   PingOverviewBucket,
   PingOverviewItem,
@@ -343,13 +349,27 @@ export function useNodePingOverviewLines(
   const samples = usePingSamples(uuid, enabled);
   const taskIds = useNodeMultiPingTaskIds(uuid);
   const carrierNames = useCarrierNames();
-  return useMemo(
-    () =>
-      enabled
-        ? getCachedLines(uuid, taskIds, samples, undefined, carrierNames)
-        : EMPTY_PING_LINES,
-    [carrierNames, enabled, samples, taskIds, uuid],
+  const rawServer = useRawServer(uuid);
+  // 单机名优先（站长在这台机器上起过名），站点名打底。
+  const nodeNames = useMemo(
+    () => nodeCarrierNames(rawServer, carrierNames),
+    [carrierNames, rawServer],
   );
+  return useMemo(() => {
+    if (!enabled) return EMPTY_PING_LINES;
+    const filtered = filterDisplayedPingTaskIds(
+      taskIds,
+      listConfiguredPingTaskIds(rawServer),
+      hasProbeList(rawServer),
+    );
+    const lines = getCachedLines(uuid, filtered, samples, undefined, nodeNames);
+    if (filtered.length === taskIds.length) return lines;
+    // 有槽位被筛掉后行号会错位：逐行带上原始槽位号，卡片 / 换线菜单靠它定位（不能用行序当槽位）。
+    return lines.map((line) => ({
+      ...line,
+      slotIndex: taskIds.indexOf(line.taskId),
+    }));
+  }, [enabled, nodeNames, rawServer, samples, taskIds, uuid]);
 }
 
 /** 这台节点在本机换过的线路；没换过是同一个空表，引用稳定。 */
@@ -413,6 +433,32 @@ export function listAvailablePingTaskIds(
 
 export function useAvailablePingTaskIds(uuid: string, enabled = true): readonly number[] {
   return listAvailablePingTaskIds(usePingSamples(uuid, enabled));
+}
+
+/**
+ * 卡片行实际展示的线路：从站点设置解析出的槽位里，把「这台节点根本没有的槽位」剔掉——
+ * 判定只看面板的 `probes[]`（已启用名单）+ 旧 8 槽。**不能拿「有数据」当保留条件**：
+ * 站长删掉/填 0 隐藏的扩展点，1 小时窗口里还留着旧样本，会被误判成「还在」。
+ * 旧面板没有 `probes[]` 时不筛，保持老口径；筛完为空也不筛（防止误杀到一条不剩）。
+ */
+export function filterDisplayedPingTaskIds(
+  taskIds: readonly number[],
+  configured: readonly number[],
+  hasProbes: boolean,
+): readonly number[] {
+  if (taskIds.length === 0 || !hasProbes) return taskIds;
+  const keep = new Set<number>([...LEGACY_CARRIER_TASK_IDS, ...configured]);
+  const next = taskIds.filter((taskId) => keep.has(taskId));
+  return next.length > 0 ? next : taskIds;
+}
+
+/** 这台节点的原始服务器对象（wsStore 里那份）：单机线路名、`probes[]` 都从它上读。 */
+export function useRawServer(uuid: string): CfsmServer | undefined {
+  const getSnapshot = useCallback(
+    () => (uuid ? getRawServerSnapshot(uuid) : undefined),
+    [uuid],
+  );
+  return useSyncExternalStore(subscribeAllNodes, getSnapshot, getSnapshot);
 }
 
 /**

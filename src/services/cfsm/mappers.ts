@@ -43,6 +43,22 @@ export const DEFAULT_CARRIER_NAMES: CarrierNames = {
   node_2: "Node 2",
   node_3: "Node 3",
   node_4: "Node 4",
+  node_5: "Node 5",
+  node_6: "Node 6",
+  node_7: "Node 7",
+  node_8: "Node 8",
+  node_9: "Node 9",
+  node_10: "Node 10",
+  node_11: "Node 11",
+  node_12: "Node 12",
+  node_13: "Node 13",
+  node_14: "Node 14",
+  node_15: "Node 15",
+  node_16: "Node 16",
+  node_17: "Node 17",
+  node_18: "Node 18",
+  node_19: "Node 19",
+  node_20: "Node 20",
 };
 
 /**
@@ -71,7 +87,7 @@ export function resolveCarrierNames(
  * 后端固定的探测线路表，没有可配置的 ping 任务。id 就是线路序号（1..N），与 `CARRIER_KEYS`
  * 同序 —— 设置页存的 `homepageMultiPingTaskIds` / `homepageDefaultPingTaskId` 都是这个 id。
  *
- * `field` / `lossField` 是 `/api/servers` 与历史行里的列名。历史接口 2026-09-09 起八条都有
+ * `field` / `lossField` 是 `/api/servers` 与历史行里的列名。历史接口 2026-09-09 起八条都有、2.13 起 24 条都有
  * （之前只有前四条）；没配探测目标的线路读出来是空的，`getPingRecords` 按实际观测到的线路过滤，不会画空线。
  */
 export const CARRIER_TASKS = [
@@ -83,6 +99,22 @@ export const CARRIER_TASKS = [
   { id: 6, key: "node_2", name: DEFAULT_CARRIER_NAMES.node_2, field: "ping_node_2", lossField: "loss_node_2" },
   { id: 7, key: "node_3", name: DEFAULT_CARRIER_NAMES.node_3, field: "ping_node_3", lossField: "loss_node_3" },
   { id: 8, key: "node_4", name: DEFAULT_CARRIER_NAMES.node_4, field: "ping_node_4", lossField: "loss_node_4" },
+  { id: 9, key: "node_5", name: DEFAULT_CARRIER_NAMES.node_5, field: "ping_node_5", lossField: "loss_node_5" },
+  { id: 10, key: "node_6", name: DEFAULT_CARRIER_NAMES.node_6, field: "ping_node_6", lossField: "loss_node_6" },
+  { id: 11, key: "node_7", name: DEFAULT_CARRIER_NAMES.node_7, field: "ping_node_7", lossField: "loss_node_7" },
+  { id: 12, key: "node_8", name: DEFAULT_CARRIER_NAMES.node_8, field: "ping_node_8", lossField: "loss_node_8" },
+  { id: 13, key: "node_9", name: DEFAULT_CARRIER_NAMES.node_9, field: "ping_node_9", lossField: "loss_node_9" },
+  { id: 14, key: "node_10", name: DEFAULT_CARRIER_NAMES.node_10, field: "ping_node_10", lossField: "loss_node_10" },
+  { id: 15, key: "node_11", name: DEFAULT_CARRIER_NAMES.node_11, field: "ping_node_11", lossField: "loss_node_11" },
+  { id: 16, key: "node_12", name: DEFAULT_CARRIER_NAMES.node_12, field: "ping_node_12", lossField: "loss_node_12" },
+  { id: 17, key: "node_13", name: DEFAULT_CARRIER_NAMES.node_13, field: "ping_node_13", lossField: "loss_node_13" },
+  { id: 18, key: "node_14", name: DEFAULT_CARRIER_NAMES.node_14, field: "ping_node_14", lossField: "loss_node_14" },
+  { id: 19, key: "node_15", name: DEFAULT_CARRIER_NAMES.node_15, field: "ping_node_15", lossField: "loss_node_15" },
+  { id: 20, key: "node_16", name: DEFAULT_CARRIER_NAMES.node_16, field: "ping_node_16", lossField: "loss_node_16" },
+  { id: 21, key: "node_17", name: DEFAULT_CARRIER_NAMES.node_17, field: "ping_node_17", lossField: "loss_node_17" },
+  { id: 22, key: "node_18", name: DEFAULT_CARRIER_NAMES.node_18, field: "ping_node_18", lossField: "loss_node_18" },
+  { id: 23, key: "node_19", name: DEFAULT_CARRIER_NAMES.node_19, field: "ping_node_19", lossField: "loss_node_19" },
+  { id: 24, key: "node_20", name: DEFAULT_CARRIER_NAMES.node_20, field: "ping_node_20", lossField: "loss_node_20" },
 ] as const;
 
 export type CarrierTask = (typeof CARRIER_TASKS)[number];
@@ -98,6 +130,83 @@ export function carrierTaskName(
 ): string {
   const key = CARRIER_TASK_BY_ID.get(taskId)?.key;
   return key ? names[key] : `线路 #${taskId}`;
+}
+
+/** 每条线路的「本机名」字段名（ct/cu/cm/bd 是 custom_X_name，其余是 node_N_name）。 */
+const NODE_NAME_FIELD_BY_KEY: Record<string, string> = {
+  ct: "custom_ct_name",
+  cu: "custom_cu_name",
+  cm: "custom_cm_name",
+  bd: "custom_bd_name",
+};
+
+/**
+ * 这台节点自己的线路名：站点名打底，服务器对象上的本机名（`custom_*_name` / `node_N_name`，
+ * 后端对 24 槽都下发、本机名优先）盖上去。老面板没有这些字段时原样返回站点名。
+ * 卡片线路名、换线菜单都要用它——站点名字表里没有扩展点，只读站点名会显示成 Node N。
+ */
+export function nodeCarrierNames(
+  server: CfsmServer | undefined,
+  siteNames: CarrierNames = DEFAULT_CARRIER_NAMES,
+): CarrierNames {
+  if (!server) return siteNames;
+  const raw = server as unknown as Record<string, unknown>;
+  let changed = false;
+  const resolved: CarrierNames = { ...siteNames };
+  for (const key of CARRIER_KEYS) {
+    const field = NODE_NAME_FIELD_BY_KEY[key] ?? `${key}_name`;
+    const value = raw[field];
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === resolved[key]) continue;
+    resolved[key] = trimmed;
+    changed = true;
+  }
+  return changed ? resolved : siteNames;
+}
+
+/**
+ * 这台节点「配了探测目标」的线路 id：以 `probes[]`（新后端按已启用槽位下发）为准；
+ * 老面板没有 `probes[]` 时返回空数组，调用方退回「有数据才算」的老口径。
+ * 用于把站长在后台删掉的端点从卡片行 / 换线菜单里清掉
+ * （注意区分「临时没样本」——那种行要保留显示「无样本」）。
+ */
+export function listConfiguredPingTaskIds(server: CfsmServer | undefined): readonly number[] {
+  if (!server) return [];
+  const probes = (server as unknown as Record<string, unknown>).probes;
+  if (!Array.isArray(probes) || probes.length === 0) return [];
+  const ids: number[] = [];
+  for (const probe of probes) {
+    const id = probe && typeof probe === "object" ? (probe as Record<string, unknown>).id : null;
+    if (typeof id !== "string") continue;
+    const task = CARRIER_TASKS.find((item) => item.key === id);
+    if (task && !ids.includes(task.id)) ids.push(task.id);
+  }
+  return ids;
+}
+
+/** 旧 8 槽（ct/cu/cm/bd/node_1..4）的 id：站点级配置，公开响应里看不到 host，不参与「已删端点」判定。 */
+export const LEGACY_CARRIER_TASK_IDS: readonly number[] = CARRIER_TASKS.filter(
+  (task) => task.id <= 8,
+).map((task) => task.id);
+
+/** 服务器对象上有没有 `probes[]`（2.13+ 后端总是下发，哪怕为空；老面板没有这个键）。 */
+export function hasProbeList(server: CfsmServer | undefined): boolean {
+  if (!server) return false;
+  return Array.isArray((server as unknown as Record<string, unknown>).probes);
+}
+
+/** 历史行里扩展点数值可能只放在 `extra_probes`（JSON 字符串）；摊平后再读，老行/新行都兼容。 */
+function withExtraProbes(row: Record<string, unknown>): Record<string, unknown> {
+  const raw = row.extra_probes;
+  if (typeof raw !== "string" || !raw) return row;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return row;
+    return { ...row, ...(parsed as Record<string, unknown>) };
+  } catch {
+    return row;
+  }
 }
 
 export function carrierPingTasks(names: CarrierNames = DEFAULT_CARRIER_NAMES): PingTask[] {
@@ -338,10 +447,11 @@ export function toNodeInfo(server: CfsmServer): NodeInfo {
 
 /** 按线路表逐条读列，加线路只改 CARRIER_TASKS，不用再来这里补字段。 */
 function carrierPingFrom(row: Record<string, unknown>): CarrierPingSnapshot {
+  const flat = withExtraProbes(row);
   const ping = { ...EMPTY_CARRIER_PING };
   for (const task of CARRIER_TASKS) {
-    const loss = toNullableNumber(row[task.lossField]);
-    ping[task.key] = probeLatency(row[task.field], loss);
+    const loss = toNullableNumber(flat[task.lossField]);
+    ping[task.key] = probeLatency(flat[task.field], loss);
     ping[CARRIER_LOSS_KEYS[task.key]] = loss;
   }
   return ping;
@@ -613,9 +723,10 @@ export function historyRowsToPingRecords(rows: HistoryRow[], client: string): Pi
   for (const row of rows) {
     const time = normalizeTimestamp(row.timestamp);
     if (time <= 0) continue;
+    const flat = withExtraProbes(row as unknown as Record<string, unknown>);
     for (const task of CARRIER_TASKS) {
-      const loss = toNullableNumber(row[task.lossField]);
-      const value = probeLatency(row[task.field], loss);
+      const loss = toNullableNumber(flat[task.lossField]);
+      const value = probeLatency(flat[task.field], loss);
       if (value == null) continue;
       out.push({
         task_id: task.id,

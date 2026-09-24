@@ -69,6 +69,22 @@ export const LatencyPointSchema = z
     node_2: nullableNumber,
     node_3: nullableNumber,
     node_4: nullableNumber,
+    node_5: nullableNumber,
+    node_6: nullableNumber,
+    node_7: nullableNumber,
+    node_8: nullableNumber,
+    node_9: nullableNumber,
+    node_10: nullableNumber,
+    node_11: nullableNumber,
+    node_12: nullableNumber,
+    node_13: nullableNumber,
+    node_14: nullableNumber,
+    node_15: nullableNumber,
+    node_16: nullableNumber,
+    node_17: nullableNumber,
+    node_18: nullableNumber,
+    node_19: nullableNumber,
+    node_20: nullableNumber,
   })
   .passthrough();
 
@@ -268,6 +284,11 @@ export const SiteConfigSchema = z
     node_3_name: looseString.nullish().transform((v) => v ?? ""),
     node_4_name: looseString.nullish().transform((v) => v ?? ""),
     /**
+     * 访客（未登录）能查的最长历史范围（小时），后端 v2.9.2+ 下发；
+     * 缺席 / 非法值按 24 小时处理（见 `resolveAnonymousMaxHistoryHours`）。
+     */
+    public_history_hours: looseNumber.nullish(),
+    /**
      * 后端下发的首页延迟窗口口径：`points`=柱子格数、`hours`=窗口跨度（小时）。
      * 后端后加的字段，老后端 / 还没上线时缺席 —— 前端据 `hours` 定跨度，缺席就回退到
      * 「从数据时间戳自推」（见 usePingOverview 的 buildPingBuckets）。`points` 暂不驱动格数。
@@ -413,7 +434,7 @@ export interface NodeMetrics {
 /**
  * 后端探测线路的 key，**顺序即线路顺序**（对应 task id 1..N）。
  *
- * 后端 2.8.5 Beta4 起从四条加到八条：原来的电信/联通/移动/BGP 之外多了四个自定义槽位
+ * 后端 2.8.5 Beta4 起从四条加到八条，2.13 起扩到 24 条：原来的电信/联通/移动/BGP 之外多了自定义槽位
  * （`/api/servers` 的 `ping_node_1..4`、窗口点里的 `node_1..4`、名字在 `/api/config` 的
  * `node_1_name..node_4_name`）。**以后再加线路只改这张表**——线路名、快照类型、窗口解析、
  * 紧凑存储、设置页的选项和上限全部由它推导（上限那条有 `pingTasks.test.ts` 的断言钉着）。
@@ -427,6 +448,22 @@ export const CARRIER_KEYS = [
   "node_2",
   "node_3",
   "node_4",
+  "node_5",
+  "node_6",
+  "node_7",
+  "node_8",
+  "node_9",
+  "node_10",
+  "node_11",
+  "node_12",
+  "node_13",
+  "node_14",
+  "node_15",
+  "node_16",
+  "node_17",
+  "node_18",
+  "node_19",
+  "node_20",
 ] as const;
 
 export type CarrierKey = (typeof CARRIER_KEYS)[number];
@@ -444,6 +481,22 @@ export const CARRIER_LOSS_KEYS = {
   node_2: "lossNode2",
   node_3: "lossNode3",
   node_4: "lossNode4",
+  node_5: "lossNode5",
+  node_6: "lossNode6",
+  node_7: "lossNode7",
+  node_8: "lossNode8",
+  node_9: "lossNode9",
+  node_10: "lossNode10",
+  node_11: "lossNode11",
+  node_12: "lossNode12",
+  node_13: "lossNode13",
+  node_14: "lossNode14",
+  node_15: "lossNode15",
+  node_16: "lossNode16",
+  node_17: "lossNode17",
+  node_18: "lossNode18",
+  node_19: "lossNode19",
+  node_20: "lossNode20",
 } as const satisfies Record<CarrierKey, string>;
 
 export type CarrierLossKey = (typeof CARRIER_LOSS_KEYS)[CarrierKey];
@@ -627,6 +680,11 @@ export interface PingOverviewItem {
 export interface HomepagePingLine extends PingOverviewItem {
   taskId: number;
   taskName: string;
+  /**
+   * 原始槽位号：站点设置/覆盖里的下标。行被「删掉的端点」过滤掉后行序会缩，
+   * 换线菜单/卡片定位槽位一律用这个，不能用行序。
+   */
+  slotIndex?: number;
 }
 
 export interface HomepagePingDisplayLine extends HomepagePingLine {
@@ -674,6 +732,8 @@ export interface PublicConfig {
   latencyWindow?: { points?: number; hours?: number };
   /** 单次实时连接的时长上限（分钟，0 = 不限）。见 `SiteConfigSchema.frontend_ws_timeout_minutes`。 */
   frontendWsTimeoutMinutes?: number;
+  /** 访客（未登录）能查的最长历史范围（小时）；后端 v2.9.2+ 下发，缺席按 24 小时。见 `SiteConfigSchema.public_history_hours`。 */
+  public_history_hours?: number | null;
   /** 后台「默认外观」换算成主题的外观值；老后端不下发时缺席。见 `resolvePreferredAppearance`。 */
   preferredAppearance?: "system" | "light" | "dark";
   /**

@@ -1005,7 +1005,7 @@ export function ThemeManage() {
     });
   }, [commitMultiPingTaskIds]);
 
-  // CF-Server-Monitor 的探测线路由后端固定（八条，见 CARRIER_TASKS），没有可配置的 ping 任务列表；
+  // CF-Server-Monitor 的探测线路由后端固定（24 条，见 CARRIER_TASKS），没有可配置的 ping 任务列表；
   // 名字则跟着后端的 custom_*_name / node_N_name 走（站长改过就显示他改的）。
   const pingTasks = useMemo(() => carrierPingTasks(carrierNames), [carrierNames]);
   const tasksLoading = false;

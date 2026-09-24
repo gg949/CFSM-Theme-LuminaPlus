@@ -38,10 +38,16 @@ import { resolvePreferredAppearance } from "@/utils/themeSettings";
 export { ApiRequestError, DatabaseUpgradeRequiredError } from "@/services/cfsm/http";
 
 /** 后端支持的历史查询时长档位（小时）。 */
-export const HISTORY_HOURS_OPTIONS = [0.167, 0.5, 1, 6, 12, 24, 48, 96, 168] as const;
+export const HISTORY_HOURS_OPTIONS = [0.167, 0.5, 1, 6, 12, 24, 48, 96, 168, 336, 720] as const;
 
 /** 未登录用户查询超过 24 小时会被拒绝。 */
 export const ANONYMOUS_MAX_HISTORY_HOURS = 24;
+
+/** 站点级访客历史范围（小时），后端 v2.9.2+ 下发；缺席 / 非法值回退 {@link ANONYMOUS_MAX_HISTORY_HOURS}。 */
+export function resolveAnonymousMaxHistoryHours(value: unknown): number {
+  const hours = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(hours) && hours > 0 ? hours : ANONYMOUS_MAX_HISTORY_HOURS;
+}
 
 const degradeWarned = new Set<string>();
 export function warnDegradedOnce(key: string, message: string) {
@@ -168,6 +174,7 @@ export async function getPublic(options?: RequestOptions): Promise<PublicConfig>
     theme_settings: resolveThemeOptions(config.theme_options),
     latencyWindow: config.latency_window,
     frontendWsTimeoutMinutes: config.frontend_ws_timeout_minutes,
+    public_history_hours: config.public_history_hours,
     preferredAppearance: resolvePreferredAppearance(config.preferred_theme),
     // 线路名可由站长在后端改；老后端不下发这几个字段，逐条回退到主题默认名。
     // 后四条（2.8.5 Beta4 新增）的键名风格和前四条不一样，是 node_N_name。
@@ -526,7 +533,7 @@ export async function getLoadRecords(
 }
 
 /**
- * Ping 历史。CF-Server-Monitor 的探测线路由后端固定（八条，见 CARRIER_TASKS），
+ * Ping 历史。CF-Server-Monitor 的探测线路由后端固定（24 条，见 CARRIER_TASKS），
  * 数据与负载共用同一张历史表，因此这里复用同一个请求形状。
  */
 export async function getPingRecords(

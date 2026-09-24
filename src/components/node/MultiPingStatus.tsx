@@ -144,10 +144,11 @@ const MultiPingMetricColumn = memo(function MultiPingMetricColumn({
       {lines.map((line, slot) => (
         // 按行号当 key，不按线路 id：访客在这一行换了线路（PingLineSwitcher）后还是同一行、
         // 同一颗按钮，焦点能回到它身上；按线路 id 会让整行卸载重建。
+        // 槽位号优先用行里带的原始值（筛掉删掉的端点后行序会缩，直接用行序会串槽）。
         <MultiPingMetricRow
-          key={slot}
+          key={line.slotIndex ?? slot}
           uuid={uuid}
-          slot={slot}
+          slot={line.slotIndex ?? slot}
           line={line}
           metric={metric}
           density={density}

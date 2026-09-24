@@ -12,7 +12,7 @@ import { fetchWithTimeout } from "@/utils/abort";
  */
 
 export const THEME_RELEASE_INDEX_URL =
-  "https://raw.githubusercontent.com/volcano-1025/CFSM-Theme-LuminaPlus/dist/index.html";
+  "https://raw.githubusercontent.com/gg949/CFSM-Theme-LuminaPlus/dist/index.html";
 
 const LATEST_THEME_CACHE_KEY = "cfsm-luminaplus:theme-latest-version";
 const LATEST_THEME_TTL_MS = 12 * 60 * 60 * 1000;

@@ -3,7 +3,6 @@ import { useHourlyClock, useMinuteClock } from "@/hooks/useClock";
 import { useNodeCardSnapshots, useShowThreeNetDetails } from "@/hooks/useNode";
 import {
   buildPingBuckets,
-  useNodeMultiPingTaskIds,
   useNodePingOverview,
   useNodePingOverviewLines,
   usePingBuckets,
@@ -11,8 +10,7 @@ import {
   withLiveLatency,
 } from "@/hooks/usePingOverview";
 import { useThemeSettings } from "@/hooks/useThemeSettings";
-import { carrierTaskName } from "@/services/cfsm/mappers";
-import { useCarrierNames, useLatencyWindowMs } from "@/hooks/usePublicConfig";
+import { useLatencyWindowMs } from "@/hooks/usePublicConfig";
 import type { HomepagePingDisplayLine, HomepagePingLine } from "@/types/cfsm";
 import { formatRenewalPrice } from "@/utils/billing";
 import { getExpireTextColor } from "@/utils/expireStatus";
@@ -117,7 +115,6 @@ export function useNodeCardModel(
   // 后端下发 latency_window.hours 时用它定柱子跨度；缺席就传 undefined，回退到
   // buildPingBuckets 的「从数据自推跨度」。四种视图都走这里，口径统一。
   const latencyWindowMs = useLatencyWindowMs();
-  const carrierNames = useCarrierNames();
   const pingBuckets = usePingBuckets(
     ping,
     pingBucketCount,
@@ -128,50 +125,31 @@ export function useNodeCardModel(
   // 与 usePingBuckets 同理:窗口按分钟前移,不依赖数据刷新才滑动。
   const bucketNow = useMinuteClock(multiPingActive);
   // 行序按这台节点实际显示的线路排：站点设置打底、访客在卡片上换过的行盖上去（PingLineSwitcher），
-  // 和 useNodePingOverviewLines 取数用的是同一份。
-  const nodeMultiPingTaskIds = useNodeMultiPingTaskIds(uuid);
+  // 行列表直接用取数那份（已筛掉被站长删掉的端点、逐行带原始槽位号）；
+  // 别再用未筛的 taskIds 拼——那会把删掉的端点又摆回卡片。
   const homepagePingLines = useMemo<HomepagePingDisplayLine[]>(() => {
     if (
       !multiPingActive
     ) {
       return [];
     }
-    return nodeMultiPingTaskIds.map((taskId) => {
-      const loaded = realPingLines.find((line) => line.taskId === taskId);
-      const line: HomepagePingLine =
-        loaded ?? {
-          taskId,
-          // 还没数据的占位行也用线路名（站长改过就跟着改），不然三条线里会混出一个「任务 #2」。
-          taskName: carrierTaskName(taskId, carrierNames),
-          client: uuid,
-          isAssigned: true,
-          loadState: "pending",
-          lastValue: null,
-          samples: [],
-          max: 1,
-          loss: null,
-        };
-      return {
-        ...line,
-        buckets: buildPingBuckets(
-          line,
-          pingBucketCount,
-          bucketNow,
-          offlineSince,
-          latencyWindowMs,
-        ),
-      };
-    });
+    return realPingLines.map((line) => ({
+      ...line,
+      buckets: buildPingBuckets(
+        line,
+        pingBucketCount,
+        bucketNow,
+        offlineSince,
+        latencyWindowMs,
+      ),
+    }));
   }, [
     bucketNow,
-    carrierNames,
     latencyWindowMs,
     multiPingActive,
-    nodeMultiPingTaskIds,
     offlineSince,
     pingBucketCount,
     realPingLines,
-    uuid,
   ]);
 
   const metaModel = useMemo(() => {
