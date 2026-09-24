@@ -154,8 +154,7 @@ export function nodeCarrierNames(
   let changed = false;
   const resolved: CarrierNames = { ...siteNames };
   for (const key of CARRIER_KEYS) {
-    const field = NODE_NAME_FIELD_BY_KEY[key] ?? `${key}_name`;
-    const value = raw[field];
+    const value = raw[carrierNameField(key)];
     if (typeof value !== "string") continue;
     const trimmed = value.trim();
     if (!trimmed || trimmed === resolved[key]) continue;
@@ -181,6 +180,39 @@ export function listConfiguredPingTaskIds(server: CfsmServer | undefined): reado
     if (typeof id !== "string") continue;
     const task = CARRIER_TASKS.find((item) => item.key === id);
     if (task && !ids.includes(task.id)) ids.push(task.id);
+  }
+  return ids;
+}
+
+/** 每条线路的 host 字段名（ct/cu/cm/bd 是 custom_X，其余是 node_N，与后端列名一致）。 */
+const HOST_FIELD_BY_KEY: Record<string, string> = {
+  ct: "custom_ct",
+  cu: "custom_cu",
+  cm: "custom_cm",
+  bd: "custom_bd",
+};
+
+/** 线路 key → 服务器对象上的 host 字段名。 */
+export function carrierHostField(key: string): string {
+  return HOST_FIELD_BY_KEY[key] ?? key;
+}
+
+/** 线路 key → 服务器对象上的名字字段名。 */
+export function carrierNameField(key: string): string {
+  return NODE_NAME_FIELD_BY_KEY[key] ?? `${key}_name`;
+}
+
+/**
+ * 被站长「填 0」隐藏的槽位：服务器对象上对应的 host 字段是 `'0'`（面板原样存、原样下发）。
+ * 空串表示「没在这一层设」（旧 8 槽常见，回退到站点级/默认目标），不算隐藏。
+ * 旧 8 槽同样适用——站长在管理面板把某条填 0，前台就该把它藏掉。
+ */
+export function listHiddenPingTaskIds(server: CfsmServer | undefined): readonly number[] {
+  if (!server) return [];
+  const raw = server as unknown as Record<string, unknown>;
+  const ids: number[] = [];
+  for (const task of CARRIER_TASKS) {
+    if (String(raw[carrierHostField(task.key)] ?? "").trim() === "0") ids.push(task.id);
   }
   return ids;
 }

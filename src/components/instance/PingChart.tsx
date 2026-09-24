@@ -5,7 +5,7 @@ import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import { usePingRecords } from "@/hooks/useRecords";
 import { useRawServer } from "@/hooks/usePingOverview";
 import { useCarrierNames } from "@/hooks/usePublicConfig";
-import { carrierTaskName, nodeCarrierNames } from "@/services/cfsm/mappers";
+import { carrierTaskName, listHiddenPingTaskIds, nodeCarrierNames } from "@/services/cfsm/mappers";
 import { InstancePanel, InstanceChartLoading } from "./InstancePanel";
 import {
   buildChartTooltipHooks,
@@ -159,14 +159,21 @@ export function PingChart({
     () => nodeCarrierNames(rawServer, carrierNames),
     [carrierNames, rawServer],
   );
+  // 站长填 0 隐藏的线路不进详情页图表（历史里可能还有旧记录）。
+  const hiddenTaskIds = useMemo(() => {
+    const set = new Set(listHiddenPingTaskIds(rawServer));
+    return set;
+  }, [rawServer]);
   // API 顺序与后台任务权重一致，响应本身不一定包含可重排的权重。
   const tasks = useMemo(
     () =>
-      (data?.tasks ?? []).map((task) => ({
-        ...task,
-        name: carrierTaskName(task.id, nodeNames),
-      })),
-    [data, nodeNames],
+      (data?.tasks ?? [])
+        .filter((task) => !hiddenTaskIds.has(task.id))
+        .map((task) => ({
+          ...task,
+          name: carrierTaskName(task.id, nodeNames),
+        })),
+    [data, hiddenTaskIds, nodeNames],
   );
   const taskLabels = useMemo(() => {
     const counts = new Map<string, number>();
